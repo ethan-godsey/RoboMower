@@ -36,7 +36,6 @@ fig, ax = plt.subplots()
 roll_data = []
 pitch_data = []
 t_data = []
-start_time = time.time()
 
 count = 0
 sum_gyro_bias_x = 0
@@ -47,8 +46,11 @@ sum_gyro_bias_z = 0
 gyro_bias_z = 0
 
 angle_x, angle_y, angle_z = 0,0,0
-
-while True: 
+start_time = time.time()
+while True:
+	last_time = time.time()
+	t = last_time - start_time
+	
 	count+= 1
 	ax_val = read_word(0x3B)
 	ay_val = read_word(0x3D)
@@ -63,31 +65,30 @@ while True:
 	y = ay_val/16384
 	z = az_val/16384
 	
-	if count < 1000:
+	if count < 500:
 		sum_gyro_bias_x += gx
 		sum_gyro_bias_y += gy
 		sum_gyro_bias_z += gz
 	
-	if count == 1000:
-		gyro_bias_x = sum_gyro_bias_x / 1000
-		gyro_bias_y = sum_gyro_bias_y / 1000
-		gyro_bias_z = sum_gyro_bias_z / 1000
+	if count == 500:
+		gyro_bias_x = sum_gyro_bias_x / 500
+		gyro_bias_y = sum_gyro_bias_y / 500
+		gyro_bias_z = sum_gyro_bias_z / 500
 		
-	roll, pitch = compute_tilt(x, y, z)
+	a_roll, a_pitch = compute_tilt(x, y, z)
 	
-	t = time.time() - start_time
-	if count > 1000:
-		angle_x = (angle_x + (gx * (t/100000000)))
-		angle_y = (angle_y + (gy * (t/100000000)))
-		angle_z = (angle_z + (gz * (t/100000000)))
-	
-	start_time = t
-	#old_gx = gx
-	#old_gz = gz
-	#old_gy = gy
+	dt = time.time() - last_time
+	if count > 500:
+		angle_x = (angle_x + (gx * dt))
+		angle_y = (angle_y + (gy * dt))
+		angle_z = (angle_z + (gz * dt))
 
-	print (f"x:{angle_x}, y:{angle_y}, z:{angle_z}")
-	#print (f"x:{gx}, y:{gy}, z:{gz}")
+	roll = (angle_y * .98) + (a_roll * .1)
+	pitch = (angle_x * .9) + (a_pitch * .1)
+
+	print (f"x:{roll}, y:{pitch}")
+	
+	'''
 	roll_data.append(roll)
 	pitch_data.append(pitch)
 	t_data.append(t)
@@ -98,6 +99,7 @@ while True:
 	ax.set_xlabel("Time")
 	ax.set_ylabel("Degrees")
 	ax.legend()
+	'''
 	
-	plt.pause(0.01)
+	#plt.pause(0.01)
 	
