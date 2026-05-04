@@ -75,7 +75,7 @@ while True:
 		gyro_bias_y = sum_gyro_bias_y / 500
 		gyro_bias_z = sum_gyro_bias_z / 500
 		
-	a_roll, a_pitch = compute_tilt(x, y, z)
+	a_pitch, a_roll = compute_tilt(x, y, z)
 	
 	dt = time.time() - last_time
 	if count > 500:
@@ -83,9 +83,10 @@ while True:
 		angle_y = (angle_y + (gy * dt))
 		angle_z = (angle_z + (gz * dt))
 
-	roll = (angle_y * .98) + (a_roll * .1)
-	pitch = (angle_x * .9) + (a_pitch * .1)
-
+	roll = (angle_y * 0) + (a_roll * 1 )
+	pitch = (angle_x * 0) + (a_pitch * 1)
+	roll = a_roll
+	pitch = a_pitch
 	print (f"x:{roll}, y:{pitch}")
 	
 	'''
