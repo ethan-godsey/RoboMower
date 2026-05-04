@@ -14,8 +14,9 @@ time.sleep(4)
 
 lidar = RPLidar(LIDAR_PORT)
 lidar.reset()
-time.sleep(2)
-lidar.clean_input()
+lidar.disconnect()
+time.sleep(3)
+lidar.connect()
 
 try:
     print(lidar.get_info())
