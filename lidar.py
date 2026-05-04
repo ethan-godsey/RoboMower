@@ -4,7 +4,7 @@ import time
 from rplidar import RPLidar
 
 LIDAR_MOTOR_PIN = 18
-LIDAR_PORT = '/dev/ttyAMA1'
+LIDAR_PORT = '/dev/ttyAMA0'
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(LIDAR_MOTOR_PIN, GPIO.OUT)
@@ -13,6 +13,9 @@ pwm.start(100)
 time.sleep(4)
 
 lidar = RPLidar(LIDAR_PORT)
+lidar.reset()
+time.sleep(2)
+lidar.clean_input()
 
 try:
     print(lidar.get_info())
