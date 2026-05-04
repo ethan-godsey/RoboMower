@@ -1,29 +1,18 @@
 import RPi.GPIO as GPIO
-import time as time
-import math
-import serial
+import time
+
 from rplidar import RPLidar
 
-lidar_moto_ctl = 18
+LIDAR_MOTOR_PIN = 18
+LIDAR_PORT = '/dev/ttyAMA1'
 
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(lidar_moto_ctl, GPIO.OUT)
-pwm = GPIO.PWM(lidar_moto_ctl, 10000)
+GPIO.setup(LIDAR_MOTOR_PIN, GPIO.OUT)
+pwm = GPIO.PWM(LIDAR_MOTOR_PIN, 10000)
 pwm.start(100)
 time.sleep(4)
 
-lidar = RPLidar('/dev/ttyAMA1')
-ser = serial.Serial('/dev/ttyAMA1', 256000, timeout=1)
-time.sleep(0.1)
-
-ser.write(b'\xA5\x50')
-time.sleep(0.1)
-
-response = ser.read(20)
-print(response.hex())
-ser.close()
-pwm.stop()
-GPIO.cleanup()
+lidar = RPLidar(LIDAR_PORT)
 
 try:
     print(lidar.get_info())
@@ -34,7 +23,7 @@ try:
             quality = measurement[0]
             angle = measurement[1]
             distance = measurement[2]
-            print(f"Quality: {quality}, Angle: {angle :.2f}, Distance: {distance:.2f}")
+            print(f"Quality: {quality}, Angle: {angle:.2f}, Distance: {distance:.2f}")
 
 except KeyboardInterrupt:
     print("Stop")
