@@ -13,10 +13,7 @@ pwm.start(100)
 time.sleep(4)
 
 lidar = RPLidar(LIDAR_PORT)
-lidar.reset()
-lidar.disconnect()
-time.sleep(3)
-lidar.connect()
+lidar.clean_input()
 
 try:
     print(lidar.get_info())
