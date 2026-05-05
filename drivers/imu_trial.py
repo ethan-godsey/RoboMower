@@ -1,3 +1,12 @@
+''' 
+lidar_trial: A test to get readings from a an MPU9250 IMU on a
+Raspberry Pi 4B. I only take readings of roll and pitch, putting them
+into a complementary filter
+
+Author: Ethan Godsey
+Date: April 3, 2026
+'''
+
 import smbus2
 import math
 import numpy as np

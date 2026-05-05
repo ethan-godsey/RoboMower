@@ -1,3 +1,12 @@
+''' 
+lidar_trial: A test to get readings from n20 wheel encoders on a
+Raspberry Pi 4B. Calculates distance traveled in mm, with current program set 
+to go 1 meter.
+
+Author: Ethan Godsey
+Date: April 25, 2026
+'''
+
 import RPi.GPIO as GPIO
 import time as time
 import math

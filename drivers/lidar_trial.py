@@ -1,3 +1,11 @@
+''' 
+imu_trial: A test to get readings from a RPLidar (A1) on a
+Raspberry Pi 4B.
+
+Author: Ethan Godsey
+Date: May 3, 2026
+'''
+
 import RPi.GPIO as GPIO
 import time
 
