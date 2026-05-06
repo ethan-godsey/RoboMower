@@ -13,7 +13,8 @@ from drivers import wheel_encoder_trial as enc
 lidar_data = queue.Queue()
 imu_data = queue.Queue()
 
-GPIO.setmode(GPIO.BCM)
+enc.setup_encoders()
+
 GPIO.setup(c.LIDAR_MOTOR_PIN, GPIO.OUT)
 pwm = GPIO.PWM(c.LIDAR_MOTOR_PIN, 10000)
 pwm.start(100)
@@ -45,6 +46,9 @@ try:
     imu_thread = threading.Thread(target=imu_read)
     lidar_thread = threading.Thread(target=lidar_read)
     encoder_thread = threading.Thread(target=encoder_read)
+    imu_thread.start()
+    lidar_thread.start()
+    encoder_thread.start()
 
 except KeyboardInterrupt:
     print("Stopped by user")
