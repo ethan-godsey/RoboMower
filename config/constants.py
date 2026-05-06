@@ -36,3 +36,5 @@ PWR = 0x6B
 # LiDAR pin and port
 LIDAR_MOTOR_PIN = 18
 LIDAR_PORT = '/dev/ttyAMA0'
+
+

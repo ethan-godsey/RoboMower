@@ -17,7 +17,7 @@ LIDAR_PORT = '/dev/ttyAMA0'
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(LIDAR_MOTOR_PIN, GPIO.OUT)
 pwm = GPIO.PWM(LIDAR_MOTOR_PIN, 10000)
-pwm.start(60)
+pwm.start(100)
 time.sleep(4)
 
 lidar = RPLidar(LIDAR_PORT)

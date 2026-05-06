@@ -39,80 +39,83 @@ def read_word(reg):
 		val = -((65535 - val) + 1)
 	return val
 
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+def main():
+	fig = plt.figure()
+	ax = fig.add_subplot(111, projection='3d')
 
-plt.ion()
-fig, ax = plt.subplots()
-	
-roll_data = []
-pitch_data = []
-t_data = []
-
-count = 0
-sum_gyro_bias_x = 0
-gyro_bias_x = 0
-sum_gyro_bias_y = 0
-gyro_bias_y = 0
-sum_gyro_bias_z = 0
-gyro_bias_z = 0
-
-angle_x, angle_y, angle_z = 0,0,0
-start_time = time.time()
-while True:
-	last_time = time.time()
-	t = last_time - start_time
-	
-	count+= 1
-	ax_val = read_word(0x3B)
-	ay_val = read_word(0x3D)
-	az_val = read_word(0x3F)
-	
-	# get the values and normalize them
-	gx = (read_word(0x43)/131) - gyro_bias_x
-	gy = (read_word(0x45)/131) - gyro_bias_y
-	gz = (read_word(0x47)/131) - gyro_bias_z
-	
-	x = ax_val/16384
-	y = ay_val/16384
-	z = az_val/16384
-	
-	if count < 500:
-		sum_gyro_bias_x += gx
-		sum_gyro_bias_y += gy
-		sum_gyro_bias_z += gz
-	
-	if count == 500:
-		gyro_bias_x = sum_gyro_bias_x / 500
-		gyro_bias_y = sum_gyro_bias_y / 500
-		gyro_bias_z = sum_gyro_bias_z / 500
+	plt.ion()
+	fig, ax = plt.subplots()
 		
-	a_pitch, a_roll = compute_tilt(x, y, z)
-	
-	dt = time.time() - last_time
-	if count > 500:
-		angle_x = (angle_x + (gx * dt))
-		angle_y = (angle_y + (gy * dt))
-		angle_z = (angle_z + (gz * dt))
+	roll_data = []
+	pitch_data = []
+	t_data = []
 
-	roll = (angle_y * 0) + (a_roll * 1 )
-	pitch = (angle_x * 0) + (a_pitch * 1)
-	roll = a_roll
-	pitch = a_pitch
-	print (f"x:{roll}, y:{pitch}")
-	
-	'''
-	roll_data.append(roll)
-	pitch_data.append(pitch)
-	t_data.append(t)
-	ax.clear()
-	ax.plot(t_data, roll_data, label="Roll")
-	ax.plot(t_data, pitch_data, label="Pitch")
-	
-	ax.set_xlabel("Time")
-	ax.set_ylabel("Degrees")
-	ax.legend()
-	'''
-	
-	#plt.pause(0.01)
-	
+	count = 0
+	sum_gyro_bias_x = 0
+	gyro_bias_x = 0
+	sum_gyro_bias_y = 0
+	gyro_bias_y = 0
+	sum_gyro_bias_z = 0
+	gyro_bias_z = 0
+
+	angle_x, angle_y, angle_z = 0,0,0
+	start_time = time.time()
+	while True:
+		last_time = time.time()
+		t = last_time - start_time
+		
+		count+= 1
+		ax_val = read_word(0x3B)
+		ay_val = read_word(0x3D)
+		az_val = read_word(0x3F)
+		
+		# get the values and normalize them
+		gx = (read_word(0x43)/131) - gyro_bias_x
+		gy = (read_word(0x45)/131) - gyro_bias_y
+		gz = (read_word(0x47)/131) - gyro_bias_z
+		
+		x = ax_val/16384
+		y = ay_val/16384
+		z = az_val/16384
+		
+		if count < 500:
+			sum_gyro_bias_x += gx
+			sum_gyro_bias_y += gy
+			sum_gyro_bias_z += gz
+		
+		if count == 500:
+			gyro_bias_x = sum_gyro_bias_x / 500
+			gyro_bias_y = sum_gyro_bias_y / 500
+			gyro_bias_z = sum_gyro_bias_z / 500
+			
+		a_pitch, a_roll = compute_tilt(x, y, z)
+		
+		dt = time.time() - last_time
+		if count > 500:
+			angle_x = (angle_x + (gx * dt))
+			angle_y = (angle_y + (gy * dt))
+			angle_z = (angle_z + (gz * dt))
+
+		roll = (angle_y * 0) + (a_roll * 1 )
+		pitch = (angle_x * 0) + (a_pitch * 1)
+		roll = a_roll
+		pitch = a_pitch
+		print (f"x:{roll}, y:{pitch}")
+		
+		'''
+		roll_data.append(roll)
+		pitch_data.append(pitch)
+		t_data.append(t)
+		ax.clear()
+		ax.plot(t_data, roll_data, label="Roll")
+		ax.plot(t_data, pitch_data, label="Pitch")
+		
+		ax.set_xlabel("Time")
+		ax.set_ylabel("Degrees")
+		ax.legend()
+		'''
+		
+		#plt.pause(0.01)
+
+if __name__ == "__main__":
+	main()

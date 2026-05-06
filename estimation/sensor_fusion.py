@@ -1,4 +1,3 @@
-from config import constants as c
 import time
 import smbus2
 import math
@@ -7,6 +6,7 @@ from rplidar import RPLidar
 import queue
 import threading
 import RPi.GPIO as GPIO
+from config import constants as c
 from drivers import imu_trial as imu
 from drivers import wheel_encoder_trial as enc
 
@@ -16,7 +16,7 @@ imu_data = queue.Queue()
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(c.LIDAR_MOTOR_PIN, GPIO.OUT)
 pwm = GPIO.PWM(c.LIDAR_MOTOR_PIN, 10000)
-pwm.start(60)
+pwm.start(100)
 lidar = RPLidar(c.LIDAR_PORT)
 lidar.reset()
 lidar.clean_input()
@@ -41,6 +41,14 @@ def lidar_read():
     for scan in lidar.iter_scans():
         lidar_data.put(scan)
 
-imu_thread = threading.Thread(target=imu_read)
-lidar_thread = threading.Thread(target=lidar_read)
-encoder_thread = threading.Thread(target=encoder_read)
+try:
+    imu_thread = threading.Thread(target=imu_read)
+    lidar_thread = threading.Thread(target=lidar_read)
+    encoder_thread = threading.Thread(target=encoder_read)
+
+except KeyboardInterrupt:
+    print("Stopped by user")
+
+finally:
+    GPIO.cleanup()
+

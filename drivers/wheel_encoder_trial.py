@@ -11,8 +11,6 @@ import RPi.GPIO as GPIO
 import time as time
 import math
 
-GPIO.cleanup()
-
 # Some pinout and encoder information that will end up in config.py
 CPR = 7
 GEAR_RATIO = 298
@@ -102,30 +100,34 @@ def stop():
 	pwm_a.ChangeDutyCycle(0)
 	pwm_b.ChangeDutyCycle(0)
 
-try:
-	GPIO.add_event_detect(A_C1, GPIO.RISING, callback=encoder_a_callback)
-	GPIO.add_event_detect(B_C1, GPIO.RISING, callback=encoder_b_callback)
+def main():
+	try:
+		GPIO.add_event_detect(A_C1, GPIO.RISING, callback=encoder_a_callback)
+		GPIO.add_event_detect(B_C1, GPIO.RISING, callback=encoder_b_callback)
 
-	backward(100)
-	#stop()
-	dist_a = 0
-	dist_b = 0
-	while abs(dist_a + dist_b) / 2 < 1000:
+		backward(100)
+		#stop()
+		dist_a = 0
+		dist_b = 0
+		while abs(dist_a + dist_b) / 2 < 1000:
 
-		print(f"A: {dist_a:.1f}mm  | B: {dist_b:.1f}mm.")
-		
-		last_ticks_a = ticks_a
-		last_ticks_b = ticks_b
-		
-		time.sleep(0.5)
+			print(f"A: {dist_a:.1f}mm  | B: {dist_b:.1f}mm.")
+			
+			last_ticks_a = ticks_a
+			last_ticks_b = ticks_b
+			
+			time.sleep(0.5)
 
-	#time.sleep(2)
-	stop()
+		#time.sleep(2)
+		stop()
 
-except KeyboardInterrupt:
-	stop()
+	except KeyboardInterrupt:
+		stop()
 
-finally:
-	GPIO.cleanup()
+	finally:
+		GPIO.cleanup()
 
-print("Done!")
+	print("Done!")
+
+if __name__ == "__main__":
+	main()
