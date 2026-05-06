@@ -21,7 +21,7 @@ WHEEL_CIRC = 34 * math.pi
 MM_PER_TICK = WHEEL_CIRC / TICKS_PER_REV
 
 EN_A = 12
-EN_B = 18
+EN_B = 17
 IN_1 = 21
 IN_2 = 20
 IN_3 = 16

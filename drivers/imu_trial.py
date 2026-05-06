@@ -15,9 +15,10 @@ from mpl_toolkits.mplot3d import Axes3D
 import time
 
 bus = smbus2.SMBus(1)
+
 addr = 0x68
 
-bus.write_byte_data(addr, 0x68, 0)
+bus.write_byte_data(addr, addr, 0)
 
 # for the accelerometer, good but not good with vibrations / shaking
 def compute_tilt(x, y, z):
@@ -32,6 +33,8 @@ def read_word(reg):
 	high = bus.read_byte_data(addr, reg)
 	low = bus.read_byte_data(addr, reg+1)
 	val = (high << 8) + low
+
+	# 2s complement of negative values
 	if val >= 0x8000:
 		val = -((65535 - val) + 1)
 	return val
