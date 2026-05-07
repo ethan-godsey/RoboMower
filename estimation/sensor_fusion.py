@@ -34,15 +34,30 @@ bus = smbus2.SMBus(1)
 start = time.time()
 state = np.array([0.0, 0.0, 0.0])
 p = np.zeros((3, 3))
+
+# q is the bias estimate in a constant matrix. it tells us how much we trust each input and can 
+# be adaptive in real systems that go on varying terrain
 q = np.diag([0.01, 0.01, 0.001])
 prev_dist = 0.0
 
 '''func: imu_read: get output from IMU and put into queue'''
 def imu_read():
+    # Activate IMU
+    sum_gyro_bias = 0.0
     bus.write_byte_data(c.IMU_ADDR, c.PWR, 0)
 
+    # Gather sample of bias while LiDAR spins up
+    for i in range(500):
+        gz = imu.read_word(c.GZ)
+        sum_gyro_bias += gz
+    
+    # average out bias to correct later
+    gyro_bias_z = sum_gyro_bias / 500
+
+    # add corrected head value to queue with x and y from accelerometer
     while True:
-        imu_data.put((imu.read_word(c.GZ), imu.read_word(c.AX), imu.read_word(c.AY)))
+        unbiased_gz = imu.read_word(c.GZ) - gyro_bias_z
+        imu_data.put((unbiased_gz, imu.read_word(c.AX), imu.read_word(c.AY)))
 
 '''func: encoder_read: get output of encoder based on when event being triggered'''
 def encoder_read():
@@ -95,13 +110,22 @@ def predict(state, p, d, delta_theta):
 
     return state, p_new
 
+def move_fwd():
+    enc.forward(100)
+    time.sleep(3)
+    enc.stop()
+
 try:
+    delta_thet = 0.0
     imu_thread = threading.Thread(target=imu_read)
     lidar_thread = threading.Thread(target=lidar_read)
     encoder_thread = threading.Thread(target=encoder_read)
+    motion_thread = threading.Thread(target=move_fwd)
     imu_thread.start()
     lidar_thread.start()
     encoder_thread.start()
+    time.sleep(5)
+    motion_thread.start()
 
     while True:
 

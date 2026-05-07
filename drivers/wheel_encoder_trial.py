@@ -34,6 +34,7 @@ dist_a = 0
 dist_b = 0
 
 def setup_enc():
+	global pwm_a, pwm_b
 	GPIO.setup([EN_A, EN_B, IN_1, IN_2, IN_3, IN_4], GPIO.OUT)
 	GPIO.setup([A_C1, A_C2, B_C1, B_C2], GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
@@ -74,21 +75,24 @@ def encoder_b_callback(channel):
 '''
 func: moves the wheels forwards
 '''
-def backward(speed):
+def backward(speed: int):
 	GPIO.output(IN_1, GPIO.HIGH)
 	GPIO.output(IN_2, GPIO.LOW)
 	GPIO.output(IN_3, GPIO.HIGH)
 	GPIO.output(IN_4, GPIO.LOW)
-	#pwm_a.ChangeDutyCycle(speed)
-	#pwm_b.ChangeDutyCycle(speed)
+	pwm_a.ChangeDutyCycle(speed)
+	pwm_b.ChangeDutyCycle(speed)
+	
 
-def forward(speed):
+def forward(speed: int):
 	GPIO.output(IN_1, GPIO.LOW)
 	GPIO.output(IN_2, GPIO.HIGH)
 	GPIO.output(IN_3, GPIO.LOW)
 	GPIO.output(IN_4, GPIO.HIGH)
-	#pwm_a.ChangeDutyCycle(speed)
-	#pwm_b.ChangeDutyCycle(speed)
+	pwm_a.ChangeDutyCycle(speed)
+	pwm_b.ChangeDutyCycle(speed)
+
+
 
 #def ticks_to_mm(ticks):
 	#return (ticks / TICKS_PER_REV) * WHEEL_CIRC
@@ -104,7 +108,6 @@ def main():
 		GPIO.add_event_detect(B_C1, GPIO.RISING, callback=encoder_b_callback)
 
 		backward(100)
-		#stop()
 		dist_a = 0
 		dist_b = 0
 		while abs(dist_a + dist_b) / 2 < 1000:
