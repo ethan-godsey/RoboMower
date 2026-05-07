@@ -10,12 +10,15 @@ from config import constants as c
 from drivers import imu_trial as imu
 from drivers import wheel_encoder_trial as enc
 
+# queues to get most recent data from varying feedback speeds
 lidar_data = queue.Queue()
 imu_data = queue.Queue()
 
+# setup encoder
 GPIO.setmode(GPIO.BCM)
 enc.setup_enc()
 
+# setup LiDAR
 GPIO.setup(c.LIDAR_MOTOR_PIN, GPIO.OUT)
 pwm = GPIO.PWM(c.LIDAR_MOTOR_PIN, 10000)
 pwm.start(100)
@@ -24,14 +27,24 @@ lidar.reset()
 lidar.clean_input()
 lidar.start_motor()
 
+# setup IMU
 bus = smbus2.SMBus(1)
 
+# initial time to reference
+start = time.time()
+state = np.array([0.0, 0.0, 0.0])
+p = np.zeros((3, 3))
+q = np.diag([0.01, 0.01, 0.001])
+prev_dist = 0.0
+
+'''func: imu_read: get output from IMU and put into queue'''
 def imu_read():
     bus.write_byte_data(c.IMU_ADDR, c.PWR, 0)
 
     while True:
         imu_data.put((imu.read_word(c.GZ), imu.read_word(c.AX), imu.read_word(c.AY)))
 
+'''func: encoder_read: get output of encoder based on when event being triggered'''
 def encoder_read():
     GPIO.add_event_detect(c.A_C1, GPIO.RISING, callback=enc.encoder_a_callback)
     GPIO.add_event_detect(c.B_C1, GPIO.RISING, callback=enc.encoder_b_callback)
@@ -39,26 +52,78 @@ def encoder_read():
     while True:
         time.sleep(0.001)
 
+'''func: lidar_read: get output of lidar spin, and then put in queue'''
 def lidar_read():    
-    try:
-        for scan in lidar.iter_scans():
-            lidar_data.put(scan)
-    except:
-        lidar.clean_input()
-        time.sleep(0.01)
+    while True:
+        try:
+            for scan in lidar.iter_scans():
+                lidar_data.put(scan)
+        except:
+            lidar.clean_input()
+            time.sleep(0.01)
+
+'''func: predict: EKF prediction filter from IMU and encoders
+param: state: 
+param: P: The uncertainty matrix and how much to trust each sensor
+param: d: distance traveled in the last increment
+param: delta_theta: change in direction (heading)'''
+def predict(state, p, d, delta_theta):
+
+    # calculate time since last step
+    global start
+    now = time.time()
+    dt = now - start
+    start = now
+
+    # get new change in x, y positions from last point
+    x_new = state[0] + d * math.cos(state[2])
+    y_new = state[1] + d * math.sin(state[2])  
+
+    # calculate heading (rotation) about the z-axis we started at
+    new_gz = (delta_theta / 131) * (math.pi / 180)
+    head_new = state[2] +  new_gz * dt
+
+    # update the state of position for next func call
+    state = np.array([x_new, y_new, head_new])
+
+    # F will be the Jacobian matrix (partial derivatives of x/y/head_new)
+    F = np.array([[1, 0, (-1 * d) * math.sin(head_new)], [0, 1, d * math.cos(head_new)], [0, 0, 1]])
+    
+    # P matrix = FPF^T where P represents sensor noise and Q represents tuned error matrix
+    p_new = F @ p @ (F.T) + q
+    p = p_new
+
+    return state, p_new
 
 try:
     imu_thread = threading.Thread(target=imu_read)
     lidar_thread = threading.Thread(target=lidar_read)
     encoder_thread = threading.Thread(target=encoder_read)
+    imu_thread.start()
+    lidar_thread.start()
+    encoder_thread.start()
+
     while True:
-        imu_thread.start()
-        lidar_thread.start()
-        encoder_thread.start()
+
+        # get imu header data from queue and clear old entries (get pops)
+        latest_imu = None
+        while not imu_data.empty():
+            latest_imu = imu_data.get()
+        if latest_imu:
+            delta_thet = latest_imu[0]
+
+
+        # get encoder distance
+        current_dist = (enc.dist_a + enc.dist_b) / 2
+        dist = current_dist - prev_dist
+        prev_dist = current_dist
+
+        # get new predicted position and uncertainty matrix and view state
+        state, p = predict(state, p, dist, delta_thet)
+        print(state)
 
 except KeyboardInterrupt:
     print("Stopped by user")
 
 finally:
     GPIO.cleanup()
-
