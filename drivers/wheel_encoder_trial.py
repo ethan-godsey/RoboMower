@@ -11,42 +11,6 @@ import RPi.GPIO as GPIO
 import time as time
 import math
 
-# Some pinout and encoder information that will end up in config.py
-CPR = 7
-GEAR_RATIO = 298
-TICKS_PER_REV = CPR * GEAR_RATIO
-WHEEL_CIRC = 34 * math.pi
-MM_PER_TICK = WHEEL_CIRC / TICKS_PER_REV
-
-EN_A = 12
-EN_B = 17
-IN_1 = 21
-IN_2 = 20
-IN_3 = 16
-IN_4 = 25
-A_C1 = 19
-A_C2 = 26
-B_C1 = 6
-B_C2 = 13
-
-def setup_encoders():
-	GPIO.setmode(GPIO.BCM)
-	GPIO.setup([EN_A, EN_B, IN_1, IN_2, IN_3, IN_4], GPIO.OUT)
-	GPIO.setup([A_C1, A_C2, B_C1, B_C2], GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-	ticks_a = 0
-	ticks_b = 0
-	last_ticks_a = 0
-	last_ticks_b = 0
-
-	pwm_a = GPIO.PWM(EN_A, 100)
-	pwm_b = GPIO.PWM(EN_B, 100)
-
-	pwm_a.start(0)
-	pwm_b.start(0)
-
-	start_a = 0
-	start_b = 0
 
 '''function for param to GPIO event_listener
 - Calculates number of ticks coming to input channels for disatnce and speed calculations
