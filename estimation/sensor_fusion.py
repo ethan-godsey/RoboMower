@@ -14,22 +14,7 @@ lidar_data = queue.Queue()
 imu_data = queue.Queue()
 
 GPIO.setmode(GPIO.BCM)
-GPIO.setup([c.EN_A, c.EN_B, c.IN_1, c.IN_2, c.IN_3, c.IN_4], GPIO.OUT)
-GPIO.setup([c.A_C1, c.A_C2, c.B_C1, c.B_C2], GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-ticks_a = 0
-ticks_b = 0
-last_ticks_a = 0
-last_ticks_b = 0
-
-pwm_a = GPIO.PWM(c.EN_A, 100)
-pwm_b = GPIO.PWM(c.EN_B, 100)
-
-pwm_a.start(0)
-pwm_b.start(0)
-
-start_a = 0
-start_b = 0
+enc.setup_enc()
 
 GPIO.setup(c.LIDAR_MOTOR_PIN, GPIO.OUT)
 pwm = GPIO.PWM(c.LIDAR_MOTOR_PIN, 10000)
