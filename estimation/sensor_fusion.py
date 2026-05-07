@@ -40,16 +40,21 @@ def encoder_read():
         time.sleep(0.001)
 
 def lidar_read():    
-    for scan in lidar.iter_scans():
-        lidar_data.put(scan)
+    try:
+        for scan in lidar.iter_scans():
+            lidar_data.put(scan)
+    except:
+        lidar.clean_input()
+        time.sleep(0.01)
 
 try:
     imu_thread = threading.Thread(target=imu_read)
     lidar_thread = threading.Thread(target=lidar_read)
     encoder_thread = threading.Thread(target=encoder_read)
-    imu_thread.start()
-    lidar_thread.start()
-    encoder_thread.start()
+    while True:
+        imu_thread.start()
+        lidar_thread.start()
+        encoder_thread.start()
 
 except KeyboardInterrupt:
     print("Stopped by user")

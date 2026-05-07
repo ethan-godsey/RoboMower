@@ -96,6 +96,7 @@ def forward(speed):
 def stop():
 	#pwm_a.ChangeDutyCycle(0)
 	#pwm_b.ChangeDutyCycle(0)
+	pass
 
 def main():
 	try:
