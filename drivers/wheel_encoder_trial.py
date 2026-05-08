@@ -9,7 +9,13 @@ Date: April 25, 2026
 
 import RPi.GPIO as GPIO
 import time as time
-#import math
+import math
+
+CPR = 7
+GEAR_RATIO = 298
+TICKS_PER_REV = CPR * GEAR_RATIO
+WHEEL_CIRC = 34 * math.pi
+MM_PER_TICK = WHEEL_CIRC / TICKS_PER_REV
 
 # Some pinout and encoder information that will end up in config.py
 EN_A = 12
@@ -52,7 +58,7 @@ def encoder_a_callback(channel):
 	global ticks_a, dist_a, speed_a, start_a
 	
 	ticks_a += 1
-	#dist_a += MM_PER_TICK
+	dist_a += MM_PER_TICK
 	now_a = time.time()
 
 	if start_a != 0:
@@ -64,7 +70,7 @@ def encoder_b_callback(channel):
 	global ticks_b, dist_b, speed_b, start_b
 	
 	ticks_b += 1
-	#dist_b += MM_PER_TICK
+	dist_b += MM_PER_TICK
 	now_b = time.time()
 
 	if start_b != 0:
