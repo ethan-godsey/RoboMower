@@ -38,6 +38,8 @@ p = np.zeros((3, 3))
 # q is the bias estimate in a constant matrix. it tells us how much we trust each input and can 
 # be adaptive in real systems that go on varying terrain
 q = np.diag([0.01, 0.01, 0.001])
+R = np.diag([0.02, 0.02])
+lndmrks = [(1, 1)]
 prev_dist = 0.0
 
 '''func: imu_read: get output from IMU and put into queue'''
@@ -110,6 +112,54 @@ def predict(state, p, d, delta_theta):
 
     return state, p_new
 
+def update(state, p, scan, landmarks, R):
+    x = state[0]
+    y= state[1]
+    for (lx, ly) in landmarks:
+        dist = (math.sqrt((lx - x)**2 + (ly - y)**2))
+        a = math.atan2(ly - y, lx - x) - state[2]
+        z_pred = np.array([dist, a])
+        H = np.array([[((x - lx) / dist), ((ly - y) / dist), 0], [((ly - y)/(dist * dist)), ((x - lx)/(dist * dist)), -1]])
+        best_match = None
+        best_diff = float('inf')
+
+        # get the most related point in the scan to our estimate
+        for point in scan:
+            scan_rads = (point[1] / 180) * math.pi
+            diff = scan_rads - a
+            diff = abs((diff + math.pi) % (2 * math.pi) - math.pi)
+            if diff < best_diff:
+                if abs((r * 1000) - point[2]) < 28:
+                    best_match = point
+                    best_diff = diff
+        
+        if best_match is None:
+            continue
+
+        # create distance angle pair for best point match of scan
+        bm_dist = (best_match[2]) / 1000
+        bm_angle = (((best_match[1] / 180) * math.pi) + math.pi) % (2 * math.pi) - math.pi
+        z = np.array([bm_dist, bm_angle])
+        
+        # innovation covariance - uncertainty in the whole system
+        S = H @ p @ H.T + R
+
+        # Kalman gain - trust in measurement vs prediction
+        s_inv = np.linalg.inv(S)
+        K = p @ H.T @ s_inv
+
+        # state correction
+        residual = z - z_pred
+        residual[1] = (residual[1] + math.pi) % (2 * math.pi) - math.pi
+        state = state + K @ (z - z_pred)
+
+        # covariance update - adjust uncertainty for next cycle
+        I = np.identity(3)
+        p = (I - K @ H) @ p
+    return state, p
+
+    
+
 def move_fwd():
     enc.forward(100)
     time.sleep(3)
@@ -131,19 +181,29 @@ try:
 
         # get imu header data from queue and clear old entries (get pops)
         latest_imu = None
+        rec_scan = None
         while not imu_data.empty():
             latest_imu = imu_data.get()
         if latest_imu:
             delta_thet = latest_imu[0]
 
-
+        latest_lidar = None
+        while not lidar_data.empty():
+            latest_lidar = lidar_data.get()
+        if latest_lidar:
+            rec_scan = latest_lidar
+        
         # get encoder distance
         current_dist = (enc.dist_a + enc.dist_b) / 2
         dist = current_dist - prev_dist
         prev_dist = current_dist
 
         # get new predicted position and uncertainty matrix and view state
-        state, p = predict(state, p, dist, delta_thet)
+        state, p = predict(state, p, dist, delta_thet) 
+
+        if latest_lidar:
+            state, p = update(state, p, rec_scan, lndmrks, R)
+        
         print(state)
 
 except KeyboardInterrupt:
