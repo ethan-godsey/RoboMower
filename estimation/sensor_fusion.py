@@ -158,8 +158,6 @@ def update(state, p, scan, landmarks, R):
         p = (I - K @ H) @ p
     return state, p
 
-    
-
 def move_fwd():
     enc.forward(100)
     time.sleep(3)
@@ -170,15 +168,14 @@ try:
     imu_thread = threading.Thread(target=imu_read)
     lidar_thread = threading.Thread(target=lidar_read)
     encoder_thread = threading.Thread(target=encoder_read)
-    motion_thread = threading.Thread(target=move_fwd)
     imu_thread.start()
     lidar_thread.start()
     encoder_thread.start()
     time.sleep(5)
-    motion_thread.start()
+    there = False
 
     while True:
-
+        
         # get imu header data from queue and clear old entries (get pops)
         latest_imu = None
         rec_scan = None
@@ -205,6 +202,34 @@ try:
             state, p = update(state, p, rec_scan, lndmrks, R)
         
         print(state)
+
+        distance = math.sqrt((state[0] - 1)**2 + (state[1] - 1)**2)
+        head = ((math.atan2(1 - state[1], 1 - state[0]) - state[2] + math.pi) % (2 * math.pi)) - math.pi
+        tail = ((math.atan2(0 - state[1], 0 - state[0]) - state[2] + math.pi) % (2 * math.pi)) - math.pi
+        back = math.sqrt((state[0] - 0)**2 + (state[1] - 0)**2)
+        if distance > 0.05 and not there:
+            if head < -0.05:
+                enc.left_backward(50)
+                enc.right_forward(50)
+            elif head > 0.05:
+                enc.right_backward(50)
+                enc.left_forward(50)
+            else:
+                enc.forward(100)
+        elif distance < 0.05 and not there:
+            there = True
+        elif back > 0.05 and there:
+            if tail < -0.05:
+                enc.right_backward(50)
+                enc.left_forward(50)
+            elif tail > 0.05:
+                enc.left_backward(50)
+                enc.right_forward(50)
+            else:
+                enc.forward(100)
+        else:
+            enc.stop()
+            
 
 except KeyboardInterrupt:
     print("Stopped by user")

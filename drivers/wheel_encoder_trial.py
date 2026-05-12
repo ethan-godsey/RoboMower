@@ -98,15 +98,32 @@ def forward(speed: int):
 	pwm_a.ChangeDutyCycle(speed)
 	pwm_b.ChangeDutyCycle(speed)
 
+def left_forward(speed: int):
+	GPIO.output(IN_1, GPIO.LOW)
+	GPIO.output(IN_2, GPIO.HIGH)
+	pwm_a.ChangeDutyCycle(speed)
 
+def right_forward(speed: int):
+	GPIO.output(IN_3, GPIO.LOW)
+	GPIO.output(IN_4, GPIO.HIGH)
+	pwm_b.ChangeDutyCycle(speed)
+
+def left_backward(speed: int):
+	GPIO.output(IN_1, GPIO.HIGH)
+	GPIO.output(IN_2, GPIO.LOW)
+	pwm_a.ChangeDutyCycle(speed)
+
+def right_backward(speed: int):
+	GPIO.output(IN_4, GPIO.LOW)
+	GPIO.output(IN_3, GPIO.HIGH)
+	pwm_b.ChangeDutyCycle(speed)
 
 #def ticks_to_mm(ticks):
 	#return (ticks / TICKS_PER_REV) * WHEEL_CIRC
 	
 def stop():
-	#pwm_a.ChangeDutyCycle(0)
-	#pwm_b.ChangeDutyCycle(0)
-	pass
+	pwm_a.ChangeDutyCycle(0)
+	pwm_b.ChangeDutyCycle(0)
 
 def main():
 	try:
