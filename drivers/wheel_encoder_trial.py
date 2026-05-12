@@ -99,13 +99,13 @@ def forward(speed: int):
 	pwm_b.ChangeDutyCycle(speed)
 
 def left_forward(speed: int):
-	GPIO.output(IN_1, GPIO.LOW)
-	GPIO.output(IN_2, GPIO.HIGH)
+	GPIO.output(IN_3, GPIO.LOW)
+	GPIO.output(IN_4, GPIO.HIGH)
 	pwm_a.ChangeDutyCycle(speed)
 
 def right_forward(speed: int):
-	GPIO.output(IN_3, GPIO.LOW)
-	GPIO.output(IN_4, GPIO.HIGH)
+	GPIO.output(IN_1, GPIO.LOW)
+	GPIO.output(IN_2, GPIO.HIGH)
 	pwm_b.ChangeDutyCycle(speed)
 
 def left_backward(speed: int):

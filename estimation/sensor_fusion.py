@@ -6,13 +6,14 @@ from rplidar import RPLidar
 import queue
 import threading
 import RPi.GPIO as GPIO
+import collections
 from config import constants as c
 from drivers import imu_trial as imu
 from drivers import wheel_encoder_trial as enc
 
 # queues to get most recent data from varying feedback speeds
 lidar_data = queue.Queue()
-imu_data = queue.Queue()
+imu_data = collections.deque(maxlen=20)
 
 # setup encoder
 GPIO.setmode(GPIO.BCM)
@@ -51,15 +52,17 @@ def imu_read():
     # Gather sample of bias while LiDAR spins up
     for i in range(500):
         gz = imu.read_word(c.GZ)
+        print(gz)
         sum_gyro_bias += gz
     
     # average out bias to correct later
     gyro_bias_z = sum_gyro_bias / 500
-
+    print(gyro_bias_z)
     # add corrected head value to queue with x and y from accelerometer
     while True:
+        print(imu.read_word(c.GZ))
         unbiased_gz = imu.read_word(c.GZ) - gyro_bias_z
-        imu_data.put((unbiased_gz, imu.read_word(c.AX), imu.read_word(c.AY)))
+        imu_data.append((unbiased_gz, imu.read_word(c.AX), imu.read_word(c.AY)))
 
 '''func: encoder_read: get output of encoder based on when event being triggered'''
 def encoder_read():
@@ -129,7 +132,7 @@ def update(state, p, scan, landmarks, R):
             diff = scan_rads - a
             diff = abs((diff + math.pi) % (2 * math.pi) - math.pi)
             if diff < best_diff:
-                if abs((r * 1000) - point[2]) < 28:
+                if abs((dist * 1000) - point[2]) < 28:
                     best_match = point
                     best_diff = diff
         
@@ -173,16 +176,19 @@ try:
     encoder_thread.start()
     time.sleep(5)
     there = False
-
+    count = 0
     while True:
         
         # get imu header data from queue and clear old entries (get pops)
         latest_imu = None
         rec_scan = None
-        while not imu_data.empty():
-            latest_imu = imu_data.get()
-        if latest_imu:
-            delta_thet = latest_imu[0]
+        imu_sum = 0
+        for meas in range(20):
+            try:
+                imu_sum += imu_data.popleft()
+            except:
+                break
+        delta_thet = imu_sum / 20
 
         latest_lidar = None
         while not lidar_data.empty():
@@ -201,34 +207,46 @@ try:
         if latest_lidar:
             state, p = update(state, p, rec_scan, lndmrks, R)
         
-        print(state)
-
+        #print(state)
+        count += 1
+        
         distance = math.sqrt((state[0] - 1)**2 + (state[1] - 1)**2)
         head = ((math.atan2(1 - state[1], 1 - state[0]) - state[2] + math.pi) % (2 * math.pi)) - math.pi
         tail = ((math.atan2(0 - state[1], 0 - state[0]) - state[2] + math.pi) % (2 * math.pi)) - math.pi
         back = math.sqrt((state[0] - 0)**2 + (state[1] - 0)**2)
+        #print(f"{distance}, {head}")
         if distance > 0.05 and not there:
             if head < -0.05:
-                enc.left_backward(50)
-                enc.right_forward(50)
+                print(f"head: {head}")
+                #enc.right_forward(50)
+                #enc.left_backward(50)
             elif head > 0.05:
-                enc.right_backward(50)
-                enc.left_forward(50)
+                print(f"head: {head}")
+                #enc.left_forward(50)
+                #enc.right_backward(50)
             else:
-                enc.forward(100)
+                print(f"head: {head}") 
+                #enc.forward(100)
         elif distance < 0.05 and not there:
             there = True
         elif back > 0.05 and there:
             if tail < -0.05:
-                enc.right_backward(50)
-                enc.left_forward(50)
+                print(tail)
+                #enc.left_backward(50)
+                #enc.right_forward(50)
             elif tail > 0.05:
-                enc.left_backward(50)
-                enc.right_forward(50)
+                print(tail)
+                #enc.right_backward(50)
+                #enc.leftt_forward(50)
             else:
-                enc.forward(100)
+                print(tail)
+                #enc.forward(100)
         else:
             enc.stop()
+        
+        if count % 10 == 0:
+            print(f"state: {state}, dist: {dist}, delta_theta: {delta_thet}")
+    
             
 
 except KeyboardInterrupt:
