@@ -191,18 +191,23 @@ def navigate_to(tx, ty, state):
     dy = ty - state[1]
     dist = math.sqrt(dx**2 + dy**2)
 
-    # calculate heading difference from state est. to landmark
+    base_speed = 60
+    gain = 60
+
+    # calculate heading difference
     heading_err = ((math.atan2(dy, dx) - state[2] + math.pi) % (2 * math.pi)) - math.pi
+
+
+    left_speed  = max(0, min(100, base_speed + gain * heading_err))
+    right_speed = max(0, min(100, base_speed - gain * heading_err))
+    
+    
     if dist < 0.05:
         return True
-    if heading_err < -0.05:
-        enc.left_backward(50)
-        enc.right_forward(50)
-    elif heading_err > 0.05:
-        enc.right_backward(50)
-        enc.left_forward(50)
+    if abs(heading_err) < 0.05:
+        enc.forward(base_speed)
     else:
-        enc.forward(100)
+        enc.drive(right_speed, left_speed)
     return False
 
 
@@ -216,6 +221,7 @@ try:
     encoder_thread.start()
     time.sleep(5)
     there = False
+    done = False
 
     while True:
         
@@ -234,7 +240,7 @@ try:
         recent_scan = lidar_data[0] if lidar_data else None
 
         # get encoder distance (ut)
-        current_dist = (enc.dist_a + enc.dist_b) / 2
+        current_dist = (enc.dist_a + enc.dist_b) / 2000
         dist = current_dist - prev_dist
         prev_dist = current_dist
 
@@ -255,32 +261,13 @@ try:
         back = math.sqrt((state[0] - 0)**2 + (state[1] - 0)**2)
 
         # control loop for heading to landmark (within 2 inches)
-        if distance > 0.05 and not there:
-            if head < -0.05:
-                enc.left_backward(50)
-                enc.right_forward(50)
-            elif head > 0.05:
-                enc.right_backward(50)
-                enc.left_forward(50)
-            else:
-                enc.forward(100)
-
-        # once there, flag that so next loop runs
-        elif distance < 0.05 and not there:
-            there = True
-        
-        # control loop for heading back to start from landmark
-        elif back > 0.05 and there:
-            if tail < -0.05:
-                enc.right_backward(50)
-                enc.left_forward(50)
-            elif tail > 0.05:
-                enc.left_backward(50)
-                enc.right_forward(50)
-            else:
-                enc.forward(100)
+        if not there:
+            there = navigate_to(1, 1, state)
+        elif not done:
+            done = navigate_to(0, 0, state)
         else:
             enc.stop()
+
             
 
 except KeyboardInterrupt:
