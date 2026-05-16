@@ -12,7 +12,7 @@ from drivers import imu_trial as imu
 from drivers import wheel_encoder_trial as enc
 
 # queues to get most recent data from varying feedback speeds
-lidar_data = queue.Queue()
+lidar_data = collections.deque(maxlen=1)
 imu_data = collections.deque(maxlen=20)
 
 # setup encoder
@@ -52,17 +52,16 @@ def imu_read():
     # Gather sample of bias while LiDAR spins up
     for i in range(500):
         gz = imu.read_word(c.GZ)
-        print(gz)
         sum_gyro_bias += gz
     
     # average out bias to correct later
     gyro_bias_z = sum_gyro_bias / 500
-    print(gyro_bias_z)
+
     # add corrected head value to queue with x and y from accelerometer
     while True:
-        print(imu.read_word(c.GZ))
         unbiased_gz = imu.read_word(c.GZ) - gyro_bias_z
         imu_data.append((unbiased_gz, imu.read_word(c.AX), imu.read_word(c.AY)))
+
 
 '''func: encoder_read: get output of encoder based on when event being triggered'''
 def encoder_read():
@@ -77,7 +76,7 @@ def lidar_read():
     while True:
         try:
             for scan in lidar.iter_scans():
-                lidar_data.put(scan)
+                lidar_data.append(scan)
         except:
             lidar.clean_input()
             time.sleep(0.01)
@@ -93,8 +92,10 @@ def predict(state, p, d, delta_theta):
     global start
     now = time.time()
     dt = now - start
+
     start = now
 
+    '''µt = g(ut,µt−1)'''
     # get new change in x, y positions from last point
     x_new = state[0] + d * math.cos(state[2])
     y_new = state[1] + d * math.sin(state[2])  
@@ -106,10 +107,11 @@ def predict(state, p, d, delta_theta):
     # update the state of position for next func call
     state = np.array([x_new, y_new, head_new])
 
+    '''Σt = Ft pt−1 Ft.T + q'''
     # F will be the Jacobian matrix (partial derivatives of x/y/head_new)
     F = np.array([[1, 0, (-1 * d) * math.sin(head_new)], [0, 1, d * math.cos(head_new)], [0, 0, 1]])
     
-    # P matrix = FPF^T where P represents sensor noise and Q represents tuned error matrix
+    # P matrix = FPF^T where P represents sensor noise (covariance) and Q represents tuned randomness in state transition
     p_new = F @ p @ (F.T) + q
     p = p_new
 
@@ -119,23 +121,33 @@ def update(state, p, scan, landmarks, R):
     x = state[0]
     y= state[1]
     for (lx, ly) in landmarks:
+
+        # linearize non-linear distance and angle
         dist = (math.sqrt((lx - x)**2 + (ly - y)**2))
         a = math.atan2(ly - y, lx - x) - state[2]
+
+        # equivalent to h(state)
         z_pred = np.array([dist, a])
+
+        # calculate jacobian for how much error in state transition causes errors in system
         H = np.array([[((x - lx) / dist), ((ly - y) / dist), 0], [((ly - y)/(dist * dist)), ((x - lx)/(dist * dist)), -1]])
-        best_match = None
-        best_diff = float('inf')
 
         # get the most related point in the scan to our estimate
+        best_match = None
+        best_diff = float('inf')
         for point in scan:
+            # convert to radians and put in frame of ref to IMU reading, not Lidar heading
             scan_rads = (point[1] / 180) * math.pi
             diff = scan_rads - a
+
+            # gets absolute difference in heading from landmark and assigns point if distances are within 28mm
             diff = abs((diff + math.pi) % (2 * math.pi) - math.pi)
             if diff < best_diff:
                 if abs((dist * 1000) - point[2]) < 28:
                     best_match = point
                     best_diff = diff
         
+        # skip if no match found
         if best_match is None:
             continue
 
@@ -147,24 +159,52 @@ def update(state, p, scan, landmarks, R):
         # innovation covariance - uncertainty in the whole system
         S = H @ p @ H.T + R
 
-        # Kalman gain - trust in measurement vs prediction
+        '''K = Σt * Ht.T (Ht*Σt*Ht.T + Qt)^−1'''
+        # Kalman gain: trust in measurement (u) vs prediction (bel(µ))
         s_inv = np.linalg.inv(S)
         K = p @ H.T @ s_inv
 
-        # state correction
+        # state correction, measures how wrong predict step was
         residual = z - z_pred
         residual[1] = (residual[1] + math.pi) % (2 * math.pi) - math.pi
-        state = state + K @ (z - z_pred)
 
+        '''µt = µt + K (zt − h(µt))'''
+        state = state + K @ (residual)
+
+        '''Σt = (I − Kt * Ht)Σt'''
         # covariance update - adjust uncertainty for next cycle
         I = np.identity(3)
         p = (I - K @ H) @ p
+
+    '''return µt,Σt'''
     return state, p
 
 def move_fwd():
     enc.forward(100)
     time.sleep(3)
     enc.stop()
+
+'''Control loop that goes to a landmark given state'''
+def navigate_to(tx, ty, state):
+    # calculate distance in 2D space to landmark
+    dx = tx - state[0]
+    dy = ty - state[1]
+    dist = math.sqrt(dx**2 + dy**2)
+
+    # calculate heading difference from state est. to landmark
+    heading_err = ((math.atan2(dy, dx) - state[2] + math.pi) % (2 * math.pi)) - math.pi
+    if dist < 0.05:
+        return True
+    if heading_err < -0.05:
+        enc.left_backward(50)
+        enc.right_forward(50)
+    elif heading_err > 0.05:
+        enc.right_backward(50)
+        enc.left_forward(50)
+    else:
+        enc.forward(100)
+    return False
+
 
 try:
     delta_thet = 0.0
@@ -176,27 +216,24 @@ try:
     encoder_thread.start()
     time.sleep(5)
     there = False
-    count = 0
+
     while True:
         
-        # get imu header data from queue and clear old entries (get pops)
+        # get imu header data to make moving average of noise
         latest_imu = None
         rec_scan = None
+        count = 0
         imu_sum = 0
-        for meas in range(20):
-            try:
-                imu_sum += imu_data.popleft()
-            except:
-                break
-        delta_thet = imu_sum / 20
+        for meas in list(imu_data):
+            imu_sum += meas[0]
+            count += 1
 
-        latest_lidar = None
-        while not lidar_data.empty():
-            latest_lidar = lidar_data.get()
-        if latest_lidar:
-            rec_scan = latest_lidar
+        if count != 0:
+            delta_thet = imu_sum / count
         
-        # get encoder distance
+        recent_scan = lidar_data[0] if lidar_data else None
+
+        # get encoder distance (ut)
         current_dist = (enc.dist_a + enc.dist_b) / 2
         dist = current_dist - prev_dist
         prev_dist = current_dist
@@ -204,49 +241,46 @@ try:
         # get new predicted position and uncertainty matrix and view state
         state, p = predict(state, p, dist, delta_thet) 
 
-        if latest_lidar:
-            state, p = update(state, p, rec_scan, lndmrks, R)
+        if recent_scan:
+            state, p = update(state, p, recent_scan, lndmrks, R)
         
-        #print(state)
-        count += 1
-        
+        print(state)
+
+        # get measurements from start to landmark
         distance = math.sqrt((state[0] - 1)**2 + (state[1] - 1)**2)
         head = ((math.atan2(1 - state[1], 1 - state[0]) - state[2] + math.pi) % (2 * math.pi)) - math.pi
+
+        # get measurements from landmark to start
         tail = ((math.atan2(0 - state[1], 0 - state[0]) - state[2] + math.pi) % (2 * math.pi)) - math.pi
         back = math.sqrt((state[0] - 0)**2 + (state[1] - 0)**2)
-        #print(f"{distance}, {head}")
+
+        # control loop for heading to landmark (within 2 inches)
         if distance > 0.05 and not there:
             if head < -0.05:
-                print(f"head: {head}")
-                #enc.right_forward(50)
-                #enc.left_backward(50)
+                enc.left_backward(50)
+                enc.right_forward(50)
             elif head > 0.05:
-                print(f"head: {head}")
-                #enc.left_forward(50)
-                #enc.right_backward(50)
+                enc.right_backward(50)
+                enc.left_forward(50)
             else:
-                print(f"head: {head}") 
-                #enc.forward(100)
+                enc.forward(100)
+
+        # once there, flag that so next loop runs
         elif distance < 0.05 and not there:
             there = True
+        
+        # control loop for heading back to start from landmark
         elif back > 0.05 and there:
             if tail < -0.05:
-                print(tail)
-                #enc.left_backward(50)
-                #enc.right_forward(50)
+                enc.right_backward(50)
+                enc.left_forward(50)
             elif tail > 0.05:
-                print(tail)
-                #enc.right_backward(50)
-                #enc.leftt_forward(50)
+                enc.left_backward(50)
+                enc.right_forward(50)
             else:
-                print(tail)
-                #enc.forward(100)
+                enc.forward(100)
         else:
             enc.stop()
-        
-        if count % 10 == 0:
-            print(f"state: {state}, dist: {dist}, delta_theta: {delta_thet}")
-    
             
 
 except KeyboardInterrupt:
