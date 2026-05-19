@@ -5,6 +5,7 @@ import numpy as np
 from rplidar import RPLidar
 import queue
 import threading
+import multiprocessing
 import RPi.GPIO as GPIO
 import collections
 from config import constants as c
@@ -12,7 +13,7 @@ from drivers import imu_trial as imu
 from drivers import wheel_encoder_trial as enc
 
 # queues to get most recent data from varying feedback speeds
-lidar_data = collections.deque(maxlen=1)
+lidar_data = multiprocessing.Queue()
 imu_data = collections.deque(maxlen=20)
 
 # setup encoder
@@ -72,11 +73,11 @@ def encoder_read():
         time.sleep(0.001)
 
 '''func: lidar_read: get output of lidar spin, and then put in queue'''
-def lidar_read():    
+def lidar_read(queue):    
     while True:
         try:
             for scan in lidar.iter_scans(min_len=5):
-                lidar_data.append(scan)
+                queue.put(scan)        
         except:
             lidar.clean_input()
 
@@ -221,8 +222,10 @@ try:
     imu_thread = threading.Thread(target=imu_read)
     lidar_thread = threading.Thread(target=lidar_read)
     encoder_thread = threading.Thread(target=encoder_read)
+    lidar_reader = multiprocessing.Process(target=lidar_read, args=(lidar_data,))
     imu_thread.start()
     lidar_thread.start()
+    lidar_reader.start()
     encoder_thread.start()
     time.sleep(5)
     there = False
@@ -242,8 +245,9 @@ try:
         if count != 0:
             delta_thet = imu_sum / count
         
-        recent_scan = lidar_data[0] if lidar_data else None
-
+        while not lidar_data.empty():
+            recent_scan = lidar_data.get_nowait()
+            
         # get encoder distance (ut)
         current_dist = (enc.dist_a + enc.dist_b) / 2000
         dist = current_dist - prev_dist
