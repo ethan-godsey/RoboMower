@@ -126,8 +126,8 @@ def drive(r_spd, l_spd):
 	GPIO.output(IN_2, GPIO.HIGH)
 	GPIO.output(IN_3, GPIO.LOW)
 	GPIO.output(IN_4, GPIO.HIGH)
-	pwm_a.ChangeDutyCycle(l_spd)
-	pwm_b.ChangeDutyCycle(r_spd)
+	pwm_a.ChangeDutyCycle(r_spd)
+	pwm_b.ChangeDutyCycle(l_spd)
 
 def stop():
 	pwm_a.ChangeDutyCycle(0)

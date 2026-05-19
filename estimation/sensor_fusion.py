@@ -22,7 +22,7 @@ enc.setup_enc()
 # setup LiDAR
 GPIO.setup(c.LIDAR_MOTOR_PIN, GPIO.OUT)
 pwm = GPIO.PWM(c.LIDAR_MOTOR_PIN, 10000)
-pwm.start(100)
+pwm.start(50)
 lidar = RPLidar(c.LIDAR_PORT)
 lidar.reset()
 lidar.clean_input()
@@ -40,7 +40,7 @@ p = np.zeros((3, 3))
 # be adaptive in real systems that go on varying terrain
 q = np.diag([0.01, 0.01, 0.001])
 R = np.diag([0.02, 0.02])
-lndmrks = [(1, 1)]
+lndmrks = [(1, 0)]
 prev_dist = 0.0
 
 '''func: imu_read: get output from IMU and put into queue'''
@@ -75,11 +75,10 @@ def encoder_read():
 def lidar_read():    
     while True:
         try:
-            for scan in lidar.iter_scans():
+            for scan in lidar.iter_scans(min_len=5):
                 lidar_data.append(scan)
         except:
             lidar.clean_input()
-            time.sleep(0.01)
 
 '''func: predict: EKF prediction filter from IMU and encoders
 param: state: 
@@ -128,7 +127,7 @@ def update(state, p, scan, landmarks, R):
 
         # equivalent to h(state)
         z_pred = np.array([dist, a])
-
+        # print(z_pred)
         # calculate jacobian for how much error in state transition causes errors in system
         H = np.array([[((x - lx) / dist), ((ly - y) / dist), 0], [((ly - y)/(dist * dist)), ((x - lx)/(dist * dist)), -1]])
 
@@ -144,13 +143,19 @@ def update(state, p, scan, landmarks, R):
             diff = abs((diff + math.pi) % (2 * math.pi) - math.pi)
             if diff < best_diff:
                 if abs((dist * 1000) - point[2]) < 28:
-                    best_match = point
-                    best_diff = diff
-        
+                    if best_diff == float('inf'):
+                        best_match = point
+                        best_diff = diff
+                    else:
+                        if abs(best_diff - diff) < 5:
+                            best_match = point
+                            best_diff = diff
+            # print(best_diff - diff)
         # skip if no match found
         if best_match is None:
             continue
-
+        else:
+            print(best_match)
         # create distance angle pair for best point match of scan
         bm_dist = (best_match[2]) / 1000
         bm_angle = (((best_match[1] / 180) * math.pi) + math.pi) % (2 * math.pi) - math.pi
@@ -249,8 +254,8 @@ try:
 
         if recent_scan:
             state, p = update(state, p, recent_scan, lndmrks, R)
-        
-        print(state)
+            
+        # print(state)
 
         # get measurements from start to landmark
         distance = math.sqrt((state[0] - 1)**2 + (state[1] - 1)**2)
@@ -261,13 +266,14 @@ try:
         back = math.sqrt((state[0] - 0)**2 + (state[1] - 0)**2)
 
         # control loop for heading to landmark (within 2 inches)
+        '''
         if not there:
-            there = navigate_to(1, 1, state)
+            there = navigate_to(0.5, 0, state)
         elif not done:
-            done = navigate_to(0, 0, state)
+            done = navigate_to(0, 0.5, state)
         else:
             enc.stop()
-
+        '''
             
 
 except KeyboardInterrupt:
