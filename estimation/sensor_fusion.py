@@ -24,10 +24,6 @@ enc.setup_enc()
 GPIO.setup(c.LIDAR_MOTOR_PIN, GPIO.OUT)
 pwm = GPIO.PWM(c.LIDAR_MOTOR_PIN, 10000)
 pwm.start(50)
-lidar = RPLidar(c.LIDAR_PORT)
-lidar.reset()
-lidar.clean_input()
-lidar.start_motor()
 
 # setup IMU
 bus = smbus2.SMBus(1)
@@ -73,7 +69,11 @@ def encoder_read():
         time.sleep(0.001)
 
 '''func: lidar_read: get output of lidar spin, and then put in queue'''
-def lidar_read(queue):    
+def lidar_read(queue):
+    lidar = RPLidar(c.LIDAR_PORT)
+    lidar.reset()
+    lidar.clean_input()
+    lidar.start_motor()    
     while True:
         try:
             for scan in lidar.iter_scans(min_len=5):
