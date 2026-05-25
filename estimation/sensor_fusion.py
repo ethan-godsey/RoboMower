@@ -12,24 +12,7 @@ from config import constants as c
 from drivers import imu_trial as imu
 from drivers import wheel_encoder_trial as enc
 
-# queues to get most recent data from varying feedback speeds
-lidar_data = multiprocessing.Queue()
-imu_data = collections.deque(maxlen=20)
-
-# setup encoder
-GPIO.setmode(GPIO.BCM)
-enc.setup_enc()
-
-# setup LiDAR
-GPIO.setup(c.LIDAR_MOTOR_PIN, GPIO.OUT)
-pwm = GPIO.PWM(c.LIDAR_MOTOR_PIN, 10000)
-pwm.start(50)
-
-# setup IMU
-bus = smbus2.SMBus(1)
-
-# initial time to reference
-start = time.time()
+# global starting variables for EKF
 state = np.array([0.0, 0.0, 0.0])
 p = np.zeros((3, 3))
 
@@ -216,72 +199,93 @@ def navigate_to(tx, ty, state):
         enc.drive(right_speed, left_speed)
     return False
 
+if __name__ == '__main__':
+    try:
+        # queue is filling up too fast for LiDAR and Python GIL bogs threads down, so starting a process for LiDAR
+        multiprocessing.set_start_method('spawn')
 
-try:
-    delta_thet = 0.0
-    imu_thread = threading.Thread(target=imu_read)
-    lidar_thread = threading.Thread(target=lidar_read)
-    encoder_thread = threading.Thread(target=encoder_read)
-    lidar_reader = multiprocessing.Process(target=lidar_read, args=(lidar_data,))
-    imu_thread.start()
-    lidar_thread.start()
-    lidar_reader.start()
-    encoder_thread.start()
-    time.sleep(5)
-    there = False
-    done = False
+        # queues to get most recent data from varying feedback speeds
+        lidar_data = multiprocessing.Queue()
+        imu_data = collections.deque(maxlen=20)
 
-    while True:
+        # setup IMU
+        bus = smbus2.SMBus(1)
         
-        # get imu header data to make moving average of noise
-        latest_imu = None
-        rec_scan = None
-        count = 0
-        imu_sum = 0
-        for meas in list(imu_data):
-            imu_sum += meas[0]
-            count += 1
+        # setup encoder
+        GPIO.setmode(GPIO.BCM)
+        enc.setup_enc()
 
-        if count != 0:
-            delta_thet = imu_sum / count
+        # setup LiDAR
+        GPIO.setup(c.LIDAR_MOTOR_PIN, GPIO.OUT)
+        pwm = GPIO.PWM(c.LIDAR_MOTOR_PIN, 10000)
+        pwm.start(50)
+
+        # start the threads and set variables for loop
+        delta_thet = 0.0
+        imu_thread = threading.Thread(target=imu_read)
+        encoder_thread = threading.Thread(target=encoder_read)
+        lidar_reader = multiprocessing.Process(target=lidar_read, args=(lidar_data,))
+        there = False
+        done = False
+        imu_thread.start()
+        lidar_reader.start()
+        encoder_thread.start()
+
+        # initial time to reference
+        start = time.time()
+
+        while True:
         
-        while not lidar_data.empty():
-            recent_scan = lidar_data.get_nowait()
+            # get imu header data to make moving average of noise (nothing else is controlled in the meantime)
+            time.sleep(5)
+            latest_imu = None
+            recent_scan = None
+            count = 0
+            imu_sum = 0
+            for meas in list(imu_data):
+                imu_sum += meas[0]
+                count += 1
+
+            if count != 0:
+                delta_thet = imu_sum / count
             
-        # get encoder distance (ut)
-        current_dist = (enc.dist_a + enc.dist_b) / 2000
-        dist = current_dist - prev_dist
-        prev_dist = current_dist
+            while not lidar_data.empty():
+                recent_scan = lidar_data.get_nowait()
+                
+            # get encoder distance (ut)
+            current_dist = (enc.dist_a + enc.dist_b) / 2000
+            dist = current_dist - prev_dist
+            prev_dist = current_dist
 
-        # get new predicted position and uncertainty matrix and view state
-        state, p = predict(state, p, dist, delta_thet) 
+            # get new predicted position and uncertainty matrix and view state
+            state, p = predict(state, p, dist, delta_thet) 
 
-        if recent_scan:
-            state, p = update(state, p, recent_scan, lndmrks, R)
-            
-        # print(state)
+            if recent_scan:
+                state, p = update(state, p, recent_scan, lndmrks, R)
+                
+            # print(state)
 
-        # get measurements from start to landmark
-        distance = math.sqrt((state[0] - 1)**2 + (state[1] - 1)**2)
-        head = ((math.atan2(1 - state[1], 1 - state[0]) - state[2] + math.pi) % (2 * math.pi)) - math.pi
+            # get measurements from start to landmark
+            distance = math.sqrt((state[0] - 1)**2 + (state[1] - 1)**2)
+            head = ((math.atan2(1 - state[1], 1 - state[0]) - state[2] + math.pi) % (2 * math.pi)) - math.pi
 
-        # get measurements from landmark to start
-        tail = ((math.atan2(0 - state[1], 0 - state[0]) - state[2] + math.pi) % (2 * math.pi)) - math.pi
-        back = math.sqrt((state[0] - 0)**2 + (state[1] - 0)**2)
+            # get measurements from landmark to start
+            tail = ((math.atan2(0 - state[1], 0 - state[0]) - state[2] + math.pi) % (2 * math.pi)) - math.pi
+            back = math.sqrt((state[0] - 0)**2 + (state[1] - 0)**2)
 
-        # control loop for heading to landmark (within 2 inches)
-        '''
-        if not there:
-            there = navigate_to(0.5, 0, state)
-        elif not done:
-            done = navigate_to(0, 0.5, state)
-        else:
-            enc.stop()
-        '''
-            
+            # control loop for heading to landmark (within 2 inches)
+            '''
+            if not there:
+                there = navigate_to(0.5, 0, state)
+            elif not done:
+                done = navigate_to(0, 0.5, state)
+            else:
+                enc.stop()
+            '''
+                
 
-except KeyboardInterrupt:
-    print("Stopped by user")
+    except KeyboardInterrupt:
+        print("Stopped by user")
 
-finally:
-    GPIO.cleanup()
+    finally:
+        GPIO.cleanup()
