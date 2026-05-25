@@ -122,12 +122,21 @@ def right_backward(speed: int):
 	#return (ticks / TICKS_PER_REV) * WHEEL_CIRC
 
 def drive(r_spd, l_spd):
-	GPIO.output(IN_1, GPIO.LOW)
-	GPIO.output(IN_2, GPIO.HIGH)
-	GPIO.output(IN_3, GPIO.LOW)
-	GPIO.output(IN_4, GPIO.HIGH)
-	pwm_a.ChangeDutyCycle(r_spd)
-	pwm_b.ChangeDutyCycle(l_spd)
+	if l_spd > 0:
+		GPIO.output(IN_1, GPIO.LOW)
+		GPIO.output(IN_2, GPIO.HIGH)
+	else:
+		GPIO.output(IN_2, GPIO.LOW)
+		GPIO.output(IN_1, GPIO.HIGH)
+	if r_spd > 0:
+		GPIO.output(IN_3, GPIO.LOW)
+		GPIO.output(IN_4, GPIO.HIGH)
+	else:
+		GPIO.output(IN_4, GPIO.LOW)
+		GPIO.output(IN_3, GPIO.HIGH)
+	
+	pwm_a.ChangeDutyCycle(abs(r_spd))
+	pwm_b.ChangeDutyCycle(abs(l_spd))
 
 def stop():
 	pwm_a.ChangeDutyCycle(0)

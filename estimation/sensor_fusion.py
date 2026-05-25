@@ -156,6 +156,10 @@ def update(state, p, scan, landmarks, R):
         # state correction, measures how wrong predict step was
         residual = z - z_pred
         residual[1] = (residual[1] + math.pi) % (2 * math.pi) - math.pi
+        
+        # dont accept super inconsistent corrections
+        if abs(residual[1]) > (math.pi / 4):
+            continue
 
         '''µt = µt + K (zt − h(µt))'''
         state = state + K @ (residual)
@@ -176,6 +180,7 @@ def move_fwd():
 '''Control loop that goes to a landmark given state'''
 def navigate_to(tx, ty, state):
     # calculate distance in 2D space to landmark
+    thresh = 1.20
     dx = tx - state[0]
     dy = ty - state[1]
     dist = math.sqrt(dx**2 + dy**2)
@@ -193,6 +198,12 @@ def navigate_to(tx, ty, state):
     
     if dist < 0.05:
         return True
+    if abs(heading_err) > thresh:
+        if heading_err > 0:
+            right_speed = -1 * left_speed
+        else:
+            left_speed = -1 * right_speed
+    
     if abs(heading_err) < 0.05:
         enc.forward(base_speed)
     else:
@@ -233,11 +244,11 @@ if __name__ == '__main__':
 
         # initial time to reference
         start = time.time()
+        time.sleep(5)
 
         while True:
         
             # get imu header data to make moving average of noise (nothing else is controlled in the meantime)
-            time.sleep(5)
             latest_imu = None
             recent_scan = None
             count = 0
@@ -274,14 +285,14 @@ if __name__ == '__main__':
             back = math.sqrt((state[0] - 0)**2 + (state[1] - 0)**2)
 
             # control loop for heading to landmark (within 2 inches)
-            '''
+            
             if not there:
                 there = navigate_to(0.5, 0, state)
             elif not done:
                 done = navigate_to(0, 0.5, state)
             else:
                 enc.stop()
-            '''
+            
                 
 
     except KeyboardInterrupt:
