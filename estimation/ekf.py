@@ -16,9 +16,9 @@ param: delta_theta: change in direction (heading)'''
 def predict(state, p, d, delta_theta):
 
     # calculate time since last step
+    global start
     now = time.time()
     dt = now - start
-    global start
     start = now
 
     '''µt = g(ut,µt−1)'''
@@ -61,23 +61,23 @@ def update(state, p, scan, landmarks):
         # get the most related point in the scan to our estimate
         best_match = None
         best_diff = float('inf')
-        for point in scan:
+        for s_quality, s_angle, s_distance in scan:
             # convert to radians and put in frame of ref to IMU reading, not Lidar heading
-            scan_rads = (point[1] / 180) * math.pi
+            scan_rads = (s_angle / 180) * math.pi
             diff = scan_rads - a
 
             # gets absolute difference in heading from landmark and assigns point if distances are within 28mm
             diff = abs((diff + math.pi) % (2 * math.pi) - math.pi)
             if diff < best_diff:
-                if abs((dist * 1000) - point[2]) < 28:
+                if abs((dist * 1000) - s_distance) < 28:
                     if best_diff == float('inf'):
-                        best_match = point
+                        best_match = [s_quality, s_angle, s_distance]
                         best_diff = diff
                     else:
                         if abs(best_diff - diff) < 5:
-                            best_match = point
+                            best_match = [s_quality, s_angle, s_distance]
                             best_diff = diff
-            # print(best_diff - diff)
+                    # print(best_diff - diff)
         # skip if no match found
         if best_match is None:
             continue
@@ -101,7 +101,7 @@ def update(state, p, scan, landmarks):
         residual[1] = (residual[1] + math.pi) % (2 * math.pi) - math.pi
         
         # dont accept super inconsistent corrections
-        if abs(residual[1]) > (math.pi / 4):
+        if abs(residual[1]) > (math.pi / 8):
             continue
 
         '''µt = µt + K (zt − h(µt))'''
@@ -113,4 +113,4 @@ def update(state, p, scan, landmarks):
         p = (I - K @ H) @ p
 
     '''return µt,Σt'''
-    return state, p
+    return state, p, best_match

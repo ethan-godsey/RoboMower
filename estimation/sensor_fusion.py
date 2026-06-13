@@ -60,15 +60,14 @@ def lidar_read(queue):
     while True:
         try:
             for scan in lidar.iter_scans(min_len=5):
-                queue.put(scan)        
-        except:
+                queue.put(scan)
+        except Exception as e:
             lidar.clean_input()
 
 def move_fwd():
     enc.forward(100)
     time.sleep(3)
     enc.stop()
-
 '''Control loop that goes to a landmark given state'''
 def navigate_to(tx, ty, state):
     # calculate distance in 2D space to landmark
@@ -166,9 +165,8 @@ if __name__ == '__main__':
             state, p = ekf.predict(state, p, dist, delta_thet) 
 
             if recent_scan:
-                state, p = ekf.update(state, p, recent_scan, lndmrks)
-                wf_queue.put({"scan": recent_scan, "state": state.tolist()})
-            # print(state)
+                state, p, best_match = ekf.update(state, p, recent_scan, lndmrks)
+                wf_queue.put({"scan": recent_scan, "state": state.tolist(), "best_match": best_match})
 
             # get measurements from start to landmark
             distance = math.sqrt((state[0] - 1)**2 + (state[1] - 1)**2)

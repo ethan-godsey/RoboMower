@@ -30,6 +30,7 @@ async def main(queue):
     async with websockets.serve(handler, IP, 3000):
         print("started!")
         await broadcast(queue)
+        print("sent!")
 
 def main_wrap(queue):
     asyncio.run(main(queue))
