@@ -56,13 +56,13 @@ export default {
       this.ctx.fillStyle = 'lime'
       for (const meas of this.scanPoints) {
         const [quality, angle, distance] = meas
-        const angle_rad = angle *  (180 / Math.PI)
+        const angle_rad = angle *  (Math.PI / 180)
         const x_mm = distance * Math.cos(angle_rad)
         const y_mm = distance * Math.sin(angle_rad)
 
         // translate onto canvas grid of 600 x 600 and plot
-        const x_px = (x_mm + 3000) / 10
-        const y_px = (y_mm + 3000) / 10
+        const x_px = (x_mm + 6000) / 20
+        const y_px = (y_mm + 6000) / 20
         this.ctx.fillRect(x_px, y_px, 2, 2)
       }
 
@@ -73,19 +73,19 @@ export default {
       const dy = 0 - (y * 1000) 
 
       // use change times heading difference to calculate coordinates
-      const local_x = ((dx * Math.cos(heading) + dy * Math.sin(heading)) + 3000) / 10
-      const local_y = (-dx * Math.sin(heading) + dy * Math.cos(heading) + 3000) / 10
+      const local_x = ((dx * Math.cos(heading) + dy * Math.sin(heading)) + 6000) / 20
+      const local_y = (-dx * Math.sin(heading) + dy * Math.cos(heading) + 6000) / 20
 
       this.ctx.fillStyle = 'black'
       this.ctx.fillRect(local_x, local_y, 3, 3)
 
       const [qual, dist, ang] = this.best
-      const ang_rad = ang *  (180 / Math.PI)
+      const ang_rad = ang *  (Math.PI / 180)
 
       const translate_x = Math.cos(ang_rad) * dist
       const translate_y = Math.sin(ang_rad) * dist
       this.ctx.fillStyle = 'red'
-      this.ctx.fillRect(((translate_x + 3000)/10), ((translate_y + 3000) /10), 2, 2)
+      this.ctx.fillRect(((translate_x + 3000)/10), ((translate_y + 6000) /20), 2, 2)
     }
   }
 }
