@@ -71,7 +71,6 @@ def move_fwd():
 '''Control loop that goes to a landmark given state'''
 def navigate_to(tx, ty, state):
     # calculate distance in 2D space to landmark
-    thresh = 1.20
     dx = tx - state[0]
     dy = ty - state[1]
     dist = math.sqrt(dx**2 + dy**2)
@@ -82,19 +81,12 @@ def navigate_to(tx, ty, state):
     # calculate heading difference
     heading_err = ((math.atan2(dy, dx) - state[2] + math.pi) % (2 * math.pi)) - math.pi
 
+    left_speed  = max(-100, min(100, base_speed + gain * heading_err))
+    right_speed = max(-100, min(100, base_speed - gain * heading_err))
 
-    left_speed  = max(0, min(100, base_speed + gain * heading_err))
-    right_speed = max(0, min(100, base_speed - gain * heading_err))
-    
-    
     if dist < 0.05:
         return True
-    if abs(heading_err) > thresh:
-        if heading_err > 0:
-            right_speed = -1 * left_speed
-        else:
-            left_speed = -1 * right_speed
-    
+
     if abs(heading_err) < 0.05:
         enc.forward(base_speed)
     else:

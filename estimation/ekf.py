@@ -111,6 +111,6 @@ def update(state, p, scan, landmarks):
         # covariance update - adjust uncertainty for next cycle
         I = np.identity(3)
         p = (I - K @ H) @ p
-
+        print(f"Kalman gain: {K};   Motion model trust: {q};    Measurement trust: {R};    Confidence (inverted): {p};     State: {state};    Match: {best_match}")
     '''return µt,Σt'''
-    return state, p, best_match
+    return state, p, best_match,
