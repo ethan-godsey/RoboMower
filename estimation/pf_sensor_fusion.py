@@ -9,6 +9,7 @@ import multiprocessing
 import RPi.GPIO as GPIO
 import collections
 import ekf as ekf
+import particle_filter as pf
 from config import constants as c
 from drivers import imu_trial as imu
 from drivers import wheel_encoder_trial as enc
@@ -16,8 +17,9 @@ from software import pi_to_laptop as front_end
 
 # global starting variables for EKF
 global start
-state = np.array([0.0, 0.0, 0.0])
-p = np.zeros((3, 3))
+ekf_state = np.array([0.0, 0.0, 0.0])
+ekf_p = np.zeros((3, 3))
+particles = pf.init_particles(500)
 
 
 lndmrks = [(1, 0)]
@@ -81,16 +83,13 @@ def navigate_to(tx, ty, state):
     # calculate heading difference
     heading_err = ((math.atan2(dy, dx) - state[2] + math.pi) % (2 * math.pi)) - math.pi
 
-    left_speed  = max(-100, min(100, base_speed + gain * heading_err))
-    right_speed = max(-100, min(100, base_speed - gain * heading_err))
+    left_speed  = max(-40, min(100, base_speed + gain * heading_err))
+    right_speed = max(-40, min(100, base_speed - gain * heading_err))
 
     if dist < 0.05:
         return True
 
-    if abs(heading_err) < 0.05:
-        enc.forward(base_speed)
-    else:
-        enc.drive(right_speed, left_speed)
+    enc.drive(right_speed, left_speed)
     return False
 
 if __name__ == '__main__':
@@ -130,9 +129,14 @@ if __name__ == '__main__':
 
         # initial time to reference
         time.sleep(5)
+        last_time = time.time()
 
         while True:
-        
+            # update time
+            now = time.time()
+            dt = now - last_time
+            last_time = now
+
             # get imu header data to make moving average of noise (nothing else is controlled in the meantime)
             latest_imu = None
             recent_scan = None
@@ -142,23 +146,37 @@ if __name__ == '__main__':
                 imu_sum += meas[0]
                 count += 1
 
+            # get the change in heading
             if count != 0:
                 delta_thet = imu_sum / count
             
+            # get the most recent scan from lidar
             while not lidar_data.empty():
                 recent_scan = lidar_data.get_nowait()
                 
-            # get encoder distance (ut)
+            # get distance traveled in the last loop til now (ut)
             current_dist = (enc.dist_a + enc.dist_b) / 2000
-            dist = current_dist - prev_dist
+            dist_covered = current_dist - prev_dist
             prev_dist = current_dist
 
             # get new predicted position and uncertainty matrix and view state
-            state, p = ekf.predict(state, p, dist, delta_thet) 
+            # state, p = ekf.predict(state, p, dist, delta_thet) 
 
+            # particle filter creates model of motion for all particles after making some new ones with updated weights
+            particles = pf.resample(particles) # updated
+            particles = pf.predict_particles(particles, dist_covered, delta_thet, dt) # updated + noise = motion model
+
+            # compare motion model particles with measured model and then resample those
             if recent_scan:
-                state, p, best_match = ekf.update(state, p, recent_scan, lndmrks)
-                wf_queue.put({"scan": recent_scan, "state": state.tolist(), "best_match": best_match})
+                pf.weight_assignment(particles, recent_scan, lndmrks, sigma=0.1)
+                particles = pf.resample(particles)
+
+                
+                # state, p, best_match = ekf.update(state, p, recent_scan, lndmrks)
+                # wf_queue.put({"scan": recent_scan, "state": state.tolist(), "best_match": best_match})
+            
+            # grab estimated state from all particles.
+            state = pf.estimate(particles)
 
             # get measurements from start to landmark
             distance = math.sqrt((state[0] - 1)**2 + (state[1] - 1)**2)
@@ -169,16 +187,13 @@ if __name__ == '__main__':
             back = math.sqrt((state[0] - 0)**2 + (state[1] - 0)**2)
 
             # control loop for heading to landmark (within 2 inches)
-            
             if not there:
                 there = navigate_to(0.5, 0, state)
             elif not done:
-                done = navigate_to(0, 0.5, state)
+                done = navigate_to(0, 0, state)
             else:
                 enc.stop()
             
-                
-
     except KeyboardInterrupt:
         print("Stopped by user")
 
