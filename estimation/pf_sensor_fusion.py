@@ -168,9 +168,12 @@ if __name__ == '__main__':
 
             # compare motion model particles with measured model and then resample those
             if recent_scan:
-                pf.weight_assignment(particles, recent_scan, lndmrks, sigma=0.1)
+                pf.weight_assignment(particles, recent_scan, lndmrks, sigma=0.5)
                 particles = pf.resample(particles)
-
+                print("scan taken")
+            ess = 1 / np.sum((particles[:, 3] / particles[:, 3]).sum()**2)
+            print(f"ESS: {ess} / {len(particles)}")
+            print(f"Max weight {particles[:, 3].max()} sum: {particles[:, 3].sum()}")
                 
                 # state, p, best_match = ekf.update(state, p, recent_scan, lndmrks)
                 # wf_queue.put({"scan": recent_scan, "state": state.tolist(), "best_match": best_match})

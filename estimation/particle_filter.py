@@ -9,8 +9,8 @@ def init_particles(n: int):
 
 def predict_particles(particles, dist, delta_theta, dt):
     # add some normally dist. noise to the particles based on where we moved and recalc each point's x, y
-    particles[:, 0] = particles[:, 0] + (dist + np.random.randn(len(particles)) * .05) * math.cos(particles[:, 2])
-    particles[:, 1] = particles[:, 1] + (dist + np.random.randn(len(particles)) * .05) * math.sin(particles[:, 2])
+    particles[:, 0] = particles[:, 0] + (dist + np.random.randn(len(particles)) * .05) * np.cos(particles[:, 2])
+    particles[:, 1] = particles[:, 1] + (dist + np.random.randn(len(particles)) * .05) * np.sin(particles[:, 2])
     
     rotation = (delta_theta / 131) * (math.pi / 180)
     particles[:, 2] = (particles[:, 2] + rotation * dt) + (np.random.randn(len(particles)) * .001)
@@ -19,7 +19,7 @@ def predict_particles(particles, dist, delta_theta, dt):
 
 def weight_assignment(particles, scan, landmarks, sigma):
     weights = []
-    
+    particles[:, 3] = 1e-100
     # look at each particle, comparing its proclaimed position to known landmarks 
     for i, p in enumerate(particles):
         best_match = None
@@ -41,12 +41,12 @@ def weight_assignment(particles, scan, landmarks, sigma):
                 if diff < best_diff:
 
                     # is the distance of particle (from the landmark) within 28mm and 5 degrees. of actual scan
-                    if abs((dist * 1000) - s_distance) < 28:
+                    if abs((dist * 1000) - s_distance) < 40:
                         if best_diff == float('inf'):
                             best_match = [s_quality, s_angle, s_distance]
                             best_diff = diff
                         else:
-                            if abs(best_diff - diff) < 5:
+                            if abs(best_diff - diff) < 9:
                                 best_match = [s_quality, s_angle, s_distance]
                                 best_diff = diff
 
@@ -58,7 +58,7 @@ def weight_assignment(particles, scan, landmarks, sigma):
         bm_dist = (best_match[2]) / 1000
         bm_angle = (((best_match[1] / 180) * math.pi) + math.pi) % (2 * math.pi) - math.pi
         residual = np.array([bm_dist, bm_angle]) - z_pred
-        weight = np.exp(-0.5 * (residual / sigma)**2)
+        weight = max(np.prod(np.exp(-0.5 * (residual / sigma)**2)), 1e-100)
         weights.append(weight)
 
         # add good weights to a weights array for other calculations
